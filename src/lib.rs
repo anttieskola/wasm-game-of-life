@@ -9,17 +9,6 @@ use getrandom;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-#[wasm_bindgen]
-extern {
-    fn alert(s: &str);
-}
-
-#[wasm_bindgen]
-pub fn greet() {
-    alert("Hello, wasm-game-of-life!");
-}
-
-
 /*
 https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life
 
@@ -34,6 +23,13 @@ It is Turing complete and can simulate a universal constructor or any other Turi
 4. any dead cell with exactly three live neighbours becomes a live cell, as if by reproduction.
  */
 
+// Memory definition (JS to access all memory)
+#[wasm_bindgen] // js binding
+pub fn wasm_memory() -> JsValue {
+    wasm_bindgen::memory()
+}
+
+// Cell definition
 #[wasm_bindgen] // js binding
 #[repr(u8)] // each cell is represented by a single byte
 #[derive(Clone, Copy, Debug, PartialEq, Eq)] // common traits
@@ -42,6 +38,7 @@ pub enum Cell {
     Alive = 1,
 }
 
+// Universe definition
 #[wasm_bindgen] // js binding
 pub struct Universe {
     width: usize,
@@ -49,11 +46,11 @@ pub struct Universe {
     cells: Vec<Cell>,
 }
 
+// private implementations
 impl Universe {
     fn get_index(&self, row: usize, column: usize) -> usize {
         (row * self.width + column) as usize
     }
-
     fn live_neighbor_count(&self, row: usize, column: usize) -> u8 {
         let mut count = 0;
         for delta_row in [self.height - 1, 0, 1].iter().cloned() {
@@ -72,12 +69,13 @@ impl Universe {
     }
 }
 
+// public implementations
 #[wasm_bindgen]
 impl Universe {
-    pub fn get_height(&self) -> usize {
+    pub fn height(&self) -> usize {
         self.height
     }
-    pub fn get_width(&self) -> usize {
+    pub fn width(&self) -> usize {
         self.width
     }
     pub fn cells(&self) -> *const Cell {
@@ -114,8 +112,8 @@ impl Universe {
     }
 
     pub fn new() -> Universe {
-        let width: usize = 64;
-        let height: usize = 64;
+        let width: usize = 256;
+        let height: usize = 256;
 
         // random seed
         let cells: Vec<Cell> = (0..width * height)
