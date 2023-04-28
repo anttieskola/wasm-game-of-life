@@ -46,18 +46,27 @@ const getIndex = (row, column) => {
 
 const drawCells = () => {
     const cellsPtr = universe.cells();
-    const cells = new Uint8Array(wasm_memory().buffer, cellsPtr, width * height);
+    const cells = new Uint8Array(wasm_memory().buffer, cellsPtr, width * height / 8);
 
     ctx.beginPath();
 
     for (let row = 0; row < height; row++) {
         for (let col = 0; col < width; col++) {
+            // index of the cell in the universe
             const idx = getIndex(row, col);
-
-            ctx.fillStyle = cells[idx] === Cell.Dead
-                ? DEAD_COLOR
-                : ALIVE_COLOR;
-
+            // our bit index array is represented as an array of 8 bit integers
+            // each integer represents 8 cells, so we need to find the correct
+            // integer from the array first
+            const integerIndex = Math.floor(idx / 8);
+            // bitmask to find the correct bit in the integer from the array
+            const integerBitMask = 1 << (idx % 8);
+            // check if the bit is set in the integer
+            const isBitSet = (cells[integerIndex] & integerBitMask) === integerBitMask;
+            // set bit alive/dead
+            ctx.fillStyle = isBitSet
+                ? ALIVE_COLOR
+                : DEAD_COLOR;
+            // fill cell
             ctx.fillRect(
                 col * (CELL_SIZE + 1) + 1,
                 row * (CELL_SIZE + 1) + 1,

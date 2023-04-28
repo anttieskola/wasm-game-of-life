@@ -1,7 +1,8 @@
 mod utils;
 use wasm_bindgen::prelude::*;
 use std::fmt;
-use getrandom;
+use js_sys;
+use fixedbitset::FixedBitSet;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -43,7 +44,7 @@ pub enum Cell {
 pub struct Universe {
     width: usize,
     height: usize,
-    cells: Vec<Cell>,
+    cells: FixedBitSet,
 }
 
 // private implementations
@@ -78,94 +79,66 @@ impl Universe {
     pub fn width(&self) -> usize {
         self.width
     }
-    pub fn cells(&self) -> *const Cell {
-        self.cells.as_ptr()
+    pub fn cells(&self) -> *const u32 {
+        self.cells.as_slice().as_ptr()
     }
     pub fn tick(&mut self) {
         let mut next = self.cells.clone();
-
         for row in 0..self.height {
             for col in 0..self.width {
                 let idx = self.get_index(row, col);
                 let cell = self.cells[idx];
                 let live_neighbors = self.live_neighbor_count(row, col);
-                let next_cell = match (cell, live_neighbors) {
+                next.set(idx, match (cell, live_neighbors) {
                     // Rule 1: Any live cell with fewer than two live neighbours
                     // dies, as if caused by underpopulation.
-                    (Cell::Alive, x) if x < 2 => Cell::Dead,
+                    (true, x) if x < 2 => false,
                     // Rule 2: Any live cell with two or three live neighbours
                     // lives on to the next generation.
-                    (Cell::Alive, 2) | (Cell::Alive, 3) => Cell::Alive,
+                    (true, x) if x == 2 || x == 3 => true,
                     // Rule 3: Any live cell with more than three live
                     // neighbours dies, as if by overpopulation.
-                    (Cell::Alive, x) if x > 3 => Cell::Dead,
+                    (true, x) if x > 3 => false,
                     // Rule 4: Any dead cell with exactly three live neighbours
                     // becomes a live cell, as if by reproduction.
-                    (Cell::Dead, 3) => Cell::Alive,
+                    (false, x) if x == 3 => true,
                     // All other cells remain in the same state.
                     (otherwise, _) => otherwise,
-                };
-                next[idx] = next_cell;
+                });
             }
         }
         self.cells = next;
     }
-
     pub fn new() -> Universe {
         let width: usize = 256;
         let height: usize = 256;
-
-        // random seed
-        let cells: Vec<Cell> = (0..width * height)
-            .map(|_i| {
-                let mut rb = [0u8; 1];
-                match getrandom::getrandom(&mut rb) {
-                    Ok(()) => {
-                        if rb[0] > 128 {
-                            Cell::Alive
-                        } else {
-                            Cell::Dead
-                        }
-                    },
-                    Err(e) => panic!("Error: {}", e),
-                }
-            }
-            ).collect();
-        
-        // hacker emblem
-        // let mut cells: Vec<Cell> = Vec::with_capacity(width * height);
-        // [1, 3]
-        // [2, 1]
-        // [2, 3]
-        // [3, 2]
-        // [3, 3]
-        // cells[1 * width + 3] = Cell::Alive;
-        // cells[2 * width + 1] = Cell::Alive;
-        // cells[2 * width + 3] = Cell::Alive;
-        // cells[3 * width + 2] = Cell::Alive;
-        // cells[3 * width + 3] = Cell::Alive;
-
+        let mut cells = FixedBitSet::with_capacity(width * height);
+        for i in 0..(width * height) {
+            match js_sys::Math::random() {
+                x if x > 0.5 => cells.set(i, true),
+                _ => cells.set(i, false),
+            };
+        }        
         Universe {
             width,
             height,
-            cells,
+            cells
         }
     }
-
-    pub fn render(&self) -> String {
-        self.to_string()
-    }    
+    // pub fn render(&self) -> String {
+    //     self.to_string()
+    // }    
 }
 
-impl fmt::Display for Universe {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for line in self.cells.as_slice().chunks(self.width as usize) {
-            for &cell in line {
-                let symbol = if cell == Cell::Dead { '◻' } else { '◼' };
-                write!(f, "{}", symbol)?;
-            }
-            write!(f, "\n")?;
-        }
-        Ok(())
-    }
-}
+// impl fmt::Display for Universe {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         for line in self.cells.as_slice().chunks(self.width as usize) {
+//             for &cell in line {
+//                 let symbol = if cell == false { '◻' } else { '◼' };
+//                 write!(f, "{}", symbol)?;
+//             }
+//             write!(f, "\n")?;
+//         }
+//         Ok(())
+//     }
+// }
