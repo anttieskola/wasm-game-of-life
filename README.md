@@ -1,5 +1,11 @@
 # Repository for doing tutorial with webassembly & rust
 - [Tutorial](https://rustwasm.github.io/docs/book/game-of-life/introduction.html)
+- [Wikipedia](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life)
+
+# Restrictions
+- When API is decorated with wasm_bindgen it can't be called from non-wasm 
+target, for example can't write a regular unit test using them
+    - Exception is that if funtion has no return type and no parameters it seems to work for example `tick()`
 
 # Wasm-bindgen
 - [wasm-bindgen](https://rustwasm.github.io/wasm-bindgen/)
