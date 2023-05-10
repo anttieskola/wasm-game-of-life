@@ -3,29 +3,27 @@
 
 <head>
   <meta charset="utf-8">
-  <title>wasm game of life</title>
+  <title>game of life</title>
   <style>
     body {
       position: absolute;
       top: 0;
       left: 0;
+      margin: 0;
+      padding: 0;
       width: 100%;
       height: 100%;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-    }
-    pre {
-      line-height: 55%;
+      background-color: black;
     }
   </style>
 </head>
 
 <body>
   <canvas id="game-of-life-canvas"></canvas>
-  <pre id="game-of-life-text"></pre>
-  <noscript>This page contains webassembly and javascript content, please enable javascript in your browser.</noscript>
   <script src="./bootstrap.js"></script>
 </body>
 

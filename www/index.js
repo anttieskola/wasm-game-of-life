@@ -1,17 +1,15 @@
 import { Universe, wasm_init, wasm_memory } from "wasm-game-of-life";
 wasm_init();
 
-const CELL_SIZE = 3; // px
-const GRID_COLOR = "#595959";
-const DEAD_COLOR = "#c96a29";
-const ALIVE_COLOR = "#04fa58";
-
-const height = 32;
-const width = 32;
+const CELL_SIZE = 3;
+const GRID_COLOR = "#2e2e2e";
+const DEAD_COLOR = "#000000";
+const ALIVE_COLOR = "#aeaeae";
+const height = Math.floor((window.innerHeight * 0.99) / (CELL_SIZE + 1));
+const width = Math.floor((window.innerWidth * 0.99) / (CELL_SIZE + 1));
 const universe = Universe.new_random(height, width);
 
 const canvas = document.getElementById("game-of-life-canvas");
-const text = document.getElementById("game-of-life-text");
 canvas.height = (CELL_SIZE + 1) * height + 1;
 canvas.width = (CELL_SIZE + 1) * width + 1;
 
@@ -20,7 +18,6 @@ const renderLoop = () => {
     universe.tick();
     drawGrid();
     drawCells();
-    text.textContent = universe.render();
     requestAnimationFrame(renderLoop);
 };
 

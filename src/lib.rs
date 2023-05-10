@@ -10,20 +10,6 @@ use wasm_bindgen::prelude::*;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-/*
-https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life
-
-The Game of Life, also known simply as Life, is a cellular automaton devised by the British mathematician John Horton Conway in 1970.
-The "game" is a zero-player game, meaning that its evolution is determined by its initial state, requiring no further input.
-One interacts with the Game of Life by creating an initial configuration and observing how it evolves.
-It is Turing complete and can simulate a universal constructor or any other Turing machine.
-
-1. any live cell with fewer than two live neighbours dies, as if caused by underpopulation.
-2. any live cell with two or three live neighbours lives on to the next generation.
-3. any live cell with more than three live neighbours dies, as if by overpopulation.
-4. any dead cell with exactly three live neighbours becomes a live cell, as if by reproduction.
- */
-
 #[wasm_bindgen]
 pub fn wasm_init() {
     utils::set_panic_hook();
@@ -65,19 +51,15 @@ impl Universe {
                 next.set(
                     idx,
                     match (cell, live_neighbors) {
-                        // Rule 1: Any live cell with fewer than two live neighbours
-                        // dies, as if caused by underpopulation.
+                        // any live cell with fewer than two live neighbours dies, as if caused by underpopulation
                         (true, x) if x < 2 => false,
-                        // Rule 2: Any live cell with two or three live neighbours
-                        // lives on to the next generation.
+                        // any live cell with two or three live neighbours lives on to the next generation
                         (true, x) if x == 2 || x == 3 => true,
-                        // Rule 3: Any live cell with more than three live
-                        // neighbours dies, as if by overpopulation.
+                        // any live cell with more than three live neighbours dies, as if by overpopulation
                         (true, x) if x > 3 => false,
-                        // Rule 4: Any dead cell with exactly three live neighbours
-                        // becomes a live cell, as if by reproduction.
+                        // any dead cell with exactly three live neighbours becomes a live cell, as if by
                         (false, x) if x == 3 => true,
-                        // All other cells remain in the same state.
+                        // other cells remain in the same state
                         (otherwise, _) => otherwise,
                     },
                 );
