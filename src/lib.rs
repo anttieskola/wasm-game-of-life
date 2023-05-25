@@ -1,8 +1,11 @@
 mod utils;
 use fixedbitset::FixedBitSet;
 use js_sys;
+use std::cell::RefCell;
 use std::fmt;
+use std::rc::Rc;
 use wasm_bindgen::prelude::*;
+use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, Window};
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -10,9 +13,143 @@ use wasm_bindgen::prelude::*;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
+const CELL_SIZE: f64 = 3.0;
+const BORDER_SIZE: f64 = 1.0;
+
+struct WindowInfo {
+    inner_width: usize,
+    inner_height: usize,
+}
+
+impl WindowInfo {
+    fn new(window: &Window) -> WindowInfo {
+        let width = match window.inner_width() {
+            Ok(width) => width.as_f64().unwrap(),
+            Err(_) => 400.0,
+        };
+        let height = match window.inner_height() {
+            Ok(height) => height.as_f64().unwrap(),
+            Err(_) => 400.0,
+        };
+        WindowInfo {
+            inner_width: width as usize,
+            inner_height: height as usize,
+        }
+    }
+}
+
 #[wasm_bindgen]
 pub fn wasm_init() {
     utils::set_panic_hook();
+}
+
+fn window() -> Window {
+    web_sys::window().expect("no global `window` exists")
+}
+
+fn request_animation_frame(closure: &Closure<dyn FnMut()>) {
+    window()
+        .request_animation_frame(closure.as_ref().unchecked_ref())
+        .expect("should register `requestAnimationFrame` OK");
+}
+
+#[wasm_bindgen]
+pub fn run() -> Result<(), JsValue> {
+    let window = window();
+    let canvas = find_canvas(&window).expect("no game-of-life-canvas found");
+    let window_info = WindowInfo::new(&window);
+    canvas.set_width(window_info.inner_width as u32);
+    canvas.set_height(window_info.inner_height as u32);
+    let ctx = canvas
+        .get_context("2d")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<CanvasRenderingContext2d>()
+        .unwrap();
+    let mut universe = Universe::new_by_window_info(&window_info);
+
+    ctx.begin_path();
+    ctx.set_stroke_style(&JsValue::from_str("#2e2e2e"));
+    let height = universe.height() as f64 * (CELL_SIZE + BORDER_SIZE) + BORDER_SIZE;
+    let width = universe.width() as f64 * (CELL_SIZE + BORDER_SIZE) + BORDER_SIZE;
+
+    // horizontal lines
+    for row in 0..universe.height() {
+        let spot = row as f64 * (CELL_SIZE + BORDER_SIZE);
+        ctx.move_to(0.0, spot);
+        ctx.line_to(width, spot);
+    }
+
+    // vertical lines
+    for col in 0..universe.width() {
+        let spot = col as f64 * (CELL_SIZE + BORDER_SIZE);
+        ctx.move_to(spot, 0.0);
+        ctx.line_to(spot, height);
+    }
+
+    ctx.stroke();
+
+    // Here we want to call `requestAnimationFrame` in a loop, but only a fixed
+    // number of times. After it's done we want all our resources cleaned up. To
+    // achieve this we're using an `Rc`. The `Rc` will eventually store the
+    // closure we want to execute on each frame, but to start out it contains
+    // `None`.
+    //
+    // After the `Rc` is made we'll actually create the closure, and the closure
+    // will reference one of the `Rc` instances. The other `Rc` reference is
+    // used to store the closure, request the first frame, and then is dropped
+    // by this function.
+    //
+    // Inside the closure we've got a persistent `Rc` reference, which we use
+    // for all future iterations of the loop
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+
+    let mut tick = 0;
+    *g.borrow_mut() = Some(Closure::new(move || {
+        if tick > 36000 {
+            // Drop our handle to this closure so that it will get cleaned
+            // up once we return.
+            let _ = f.borrow_mut().take();
+            return;
+        }
+        tick += 1;
+        universe.tick();
+
+        // draw cells
+        for row in 0..universe.height() {
+            for col in 0..universe.width() {
+                let idx = universe.get_index(row, col);
+                let cell = universe.cells[idx];
+                if cell {
+                    ctx.set_fill_style(&JsValue::from_str("#aeaeae"));
+                } else {
+                    ctx.set_fill_style(&JsValue::from_str("#000000"));
+                }
+                ctx.fill_rect(
+                    (col as f64 * (CELL_SIZE + BORDER_SIZE)) + BORDER_SIZE,
+                    (row as f64 * (CELL_SIZE + BORDER_SIZE)) + BORDER_SIZE,
+                    CELL_SIZE,
+                    CELL_SIZE,
+                );
+            }
+        }
+
+        ctx.stroke();
+
+        // Schedule ourself for another requestAnimationFrame callback.
+        request_animation_frame(f.borrow().as_ref().unwrap());
+    }));
+
+    request_animation_frame(g.borrow().as_ref().unwrap());
+    Ok(())
+}
+
+fn find_canvas(window: &Window) -> Option<HtmlCanvasElement> {
+    let document = window.document()?;
+    let info_element = document.get_element_by_id("game-of-life-canvas")?;
+    let canvas = info_element.dyn_into::<HtmlCanvasElement>().ok()?;
+    Some(canvas)
 }
 
 // Memory definition (JS to access all memory)
@@ -84,6 +221,20 @@ impl Universe {
 
 // non wasm binded api
 impl Universe {
+    fn new_by_window_info(window_info: &WindowInfo) -> Universe {
+        let height = (window_info.inner_height - BORDER_SIZE as usize)
+            / (CELL_SIZE as usize + BORDER_SIZE as usize);
+        let width = (window_info.inner_width - BORDER_SIZE as usize)
+            / (CELL_SIZE as usize + BORDER_SIZE as usize);
+        let mut universe = Universe::new(width, height);
+        for i in 0..(width * height) {
+            let rnd = js_sys::Math::random();
+            if rnd > 0.5 {
+                universe.cells.set(i, true);
+            }
+        }
+        universe
+    }
     fn get_index(&self, row: usize, column: usize) -> usize {
         (row * self.width + column) as usize
     }

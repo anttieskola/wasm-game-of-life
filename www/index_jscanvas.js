@@ -14,9 +14,9 @@ canvas.height = (CELL_SIZE + 1) * height + 1;
 canvas.width = (CELL_SIZE + 1) * width + 1;
 
 const ctx = canvas.getContext('2d');
+
 const renderLoop = () => {
     universe.tick();
-    drawGrid();
     drawCells();
     requestAnimationFrame(renderLoop);
 };
